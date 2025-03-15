@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ball Movement with Lamp</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: white;
+            overflow: hidden;
+            transition: background-color 0.5s;
+        }
+        canvas {
+            display: block;
+        }
+        .lamp-container {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 1000;
+            cursor: pointer;
+        }
+        .stand, .cord, .lamp {
+            background-color: black;
+        }
+        .stand {
+            width: 45px;
+            height: 10px;
+        }
+        .cord {
+            width: 4px;
+            height: 100px;
+        }
+        .lamp {
+            width: 45px;
+            height: 40px;
+            clip-path: polygon(0% 100%, 100% 100%, 50% -40%);
+            cursor: pointer;
+        }
+        .light {
+            background-color: #ffff00;
+            position: absolute;
+            top: 150px;
+            width: 120px;
+            height: 100px;
+            clip-path: polygon(0% 100%, 100% 100%, 50% -40%);
+            pointer-events: none;
+            opacity: 0;
+        }
+        .blob-bar {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            height: 10px;
+            width: 0px;
+            background-color: black;
+            transition: width 0.2s;
+        }
+    </style>
+</head>
+<body>
+    <div class="lamp-container">
+        <div class="stand"></div>
+        <div class="cord"></div>
+        <div class="lamp" onclick="toggleLamp()"></div>
+        <div class="light"></div>
+    </div>
+    <div class="blob-bar"></div>
+    <canvas id="gameCanvas"></canvas>
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let isLampOn = false;
+        let scrollOffset = 0;
+        let score = 0;
+        let blobBarWidth = 0;
+
+        function toggleLamp() {
+            isLampOn = !isLampOn;
+            document.body.style.backgroundColor = isLampOn ? 'black' : 'white';
+            const color = isLampOn ? 'white' : 'black';
+            document.querySelector('.cord').style.backgroundColor = color;
+            document.querySelector('.stand').style.backgroundColor = color;
+            document.querySelector('.lamp').style.backgroundColor = color;
+            document.querySelector('.light').style.opacity = isLampOn ? '0.5' : '0';
+            document.querySelector('.blob-bar').style.backgroundColor = color;
+        }
+
+        class GameObject {
+            constructor(x, y, width, height, color = "black") {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+                this.color = color;
+            }
+
+            draw() {
+                ctx.fillStyle = isLampOn ? "white" : this.color;
+                ctx.fillRect(this.x - scrollOffset, this.y, this.width, this.height);
+            }
+        }
+
+        class Blob {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = 10;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x - scrollOffset, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = isLampOn ? "white" : "black";
+                ctx.fill();
+                ctx.closePath();
+            }
+        }
+
+        const ball = {
+            x: 100, y: canvas.height - 50,
+            radius: 20, dx: 0, dy: 0, speed: 5,
+            gravity: 0.5, jumpPower: -12,
+            onGround: false
+        };
+
+        const platforms = [
+            new GameObject(0, canvas.height - 5, 500, 5),
+            new GameObject(600, canvas.height - 100, 200, 5),
+            new GameObject(900, canvas.height - 200, 200, 5),
+            new GameObject(1300, canvas.height - 100, 600, 5)
+        ];
+
+        const objects = [
+            new GameObject(450, canvas.height - 30, 50, 30, "black") // Solid Block
+        ];
+
+        const blobs = platforms.map(p => new Blob(p.x + p.width / 2, p.y - 15));
+
+        function drawBall() {
+            ctx.beginPath();
+            ctx.arc(ball.x - scrollOffset, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.fillStyle = isLampOn ? "white" : "black";
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        function updateBall() {
+            ball.dy += ball.gravity;
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+            ball.onGround = false;
+
+            platforms.forEach(platform => {
+                if (
+                    ball.y + ball.radius >= platform.y &&
+                    ball.y + ball.radius - ball.dy <= platform.y &&
+                    ball.x >= platform.x &&
+                    ball.x <= platform.x + platform.width
+                ) {
+                    ball.y = platform.y - ball.radius;
+                    ball.dy = 0;
+                    ball.onGround = true;
+                }
+            });
+
+            objects.forEach(object => {
+                if (
+                    ball.x + ball.radius > object.x && 
+                    ball.x - ball.radius < object.x + object.width && 
+                    ball.y + ball.radius > object.y && 
+                    ball.y - ball.radius < object.y + object.height
+                ) {
+                    if (ball.x < object.x) {
+                        ball.x = object.x - ball.radius;
+                        ball.dx = 0;
+                    } else if (ball.x > object.x + object.width) {
+                        ball.x = object.x + object.width + ball.radius;
+                        ball.dx = 0;
+                    } else if (ball.y < object.y) {
+                        ball.y = object.y - ball.radius;
+                        ball.dy = 0;
+                        ball.onGround = true;
+                    } else {
+                        ball.y = object.y + object.height + ball.radius;
+                        ball.dy = 0;
+                    }
+                }
+            });
+
+            blobs.forEach((blob, index) => {
+                if (Math.abs(ball.x - blob.x) < 20 && Math.abs(ball.y - blob.y) < 20) {
+                    blobs.splice(index, 1);
+                    score += 10;
+                    blobBarWidth = Math.min(blobBarWidth + 2, 200);
+                    document.querySelector('.blob-bar').style.width = blobBarWidth + 'px';
+                }
+            });
+
+            if (ball.x > canvas.width / 2) {
+                scrollOffset = ball.x - canvas.width / 2;
+            }
+
+            if (ball.y > canvas.height) {
+                resetGame();
+            }
+        }
+
+        function resetGame() {
+            ball.x = 100;
+            ball.y = canvas.height - 50;
+            ball.dx = 0;
+            ball.dy = 0;
+            scrollOffset = 0;
+            blobs.length = 0; // Reset blobs
+            platforms.forEach(platform => {
+                blobs.push(new Blob(platform.x + platform.width / 2, platform.y - 15));
+            });
+            blobBarWidth = 0; // Reset the blob bar
+            document.querySelector('.blob-bar').style.width = blobBarWidth + 'px';
+        }
+
+        function update() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            platforms.forEach(platform => platform.draw());
+            objects.forEach(object => object.draw());
+            blobs.forEach(blob => blob.draw());
+            updateBall();
+            drawBall();
+            requestAnimationFrame(update);
+        }
+
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "ArrowRight") {
+                ball.dx = ball.speed;
+            } else if (event.key === "ArrowLeft") {
+                ball.dx = -ball.speed;
+            } else if (event.key === "ArrowUp" && ball.onGround) {
+                ball.dy = ball.jumpPower;
+            }
+        });
+
+        document.addEventListener("keyup", (event) => {
+            if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+                ball.dx = 0;
+            }
+        });
+
+        update();
+    </script>
+</body>
+</html>
